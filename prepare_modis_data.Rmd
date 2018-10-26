@@ -1,0 +1,147 @@
+---
+title: "Prepare MODIS Data"
+output: html_notebook
+---
+
+This code imports, cleans, and merges MODIS product data exported using the [AppEEARS](https://lpdaacsvc.cr.usgs.gov/appeears) web application.
+
+Exported MODIS data for the period 2000-2016:
+
+* **MOD11A2:** LST Day 1km & LST Night 1km (8 day)
+* **MOD13Q1:** EVI 250m & NDVI 250m (16 day)
+* **MOD15A2H:** fPAR 500m & LAI 500m (8 day)
+* **MOD16A2:** LE 500m & PET 500m (8 day)
+* **MOD17A2H:** GPP 500m (8 day)
+
+Data was exported for 50 BAMS paper sites (.csv format, "ID", "Category", "LAT", "LONG")
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# clear workspace and get wd
+rm(list=ls())
+# change wd
+setwd("C:/Users/Gavin McNicol/Box Sync/MODIS Data/AppEEARS Data/")
+bams.sites <- read.csv("AppEEARS_sites.csv")
+names(bams.sites)[c(3,4)] <- c("LAT", "LONG")
+bams.sites
+```
+
+
+```{r echo=FALSE}
+# libraries
+# load tidyverse libraries
+library(dplyr)
+library(tidyr)
+library(readr)
+library(readxl)
+library(stringr)
+library(lubridate)
+library(RColorBrewer)
+library(ggplot2)
+library(data.table)
+library(magrittr)
+library(caret)
+library(caTools)
+library(ranger)
+library(tibble)
+```
+
+9 MODIS products are downloaded in 5 .csv files:
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+# change wd
+setwd("C:/Users/Gavin McNicol/Box Sync/MODIS Data/AppEEARS Data/bams-sites")
+# get site names from directory
+site.names <- list.files(pattern = "\\.csv$",full.names=TRUE)
+site.names
+  # create list of products
+modis <- list()
+# create a function to read many csvs
+read.many.csv <- function(i){
+  read.csv(i, header=TRUE)
+}
+# execute function with site.names
+modis <- lapply(site.names, read.many.csv)
+modis
+```
+Simplify data by removing unnecssary fields:
+```{r echo = FALSE}
+lst.names <- names(modis[[1]][c(3,4,5,9,10,15,24)]) 
+vi.names <- names(modis[[2]][c(3,4,5,9,10,14)])
+lai.names <- names(modis[[3]][c(3,4,5,9,10,14)])
+et.names <- names(modis[[4]][c(3,4,5,9,10,14)])
+gpp.names <- names(modis[[5]][c(3,4,5,9,13)])
+names.vec <- list(lst.names,vi.names, lai.names, et.names, gpp.names)
+modis.simple <- list()
+for (i in 1:length(modis)){
+     modis.simple[[i]] <- as_tibble(modis[[i]][names.vec[[i]]])
+     modis.simple[[i]]$Date <- as_date(modis.simple[[i]]$Date)
+}
+#split night and day LST; evi and NDVI; LAI and fPAR.
+modis.simple[[6]] <- modis.simple[[1]] %>% select(Latitude, Longitude, Date, MOD11A2_006_LST_Night_1km, 
+                                                  MOD11A2_006_QC_Night_MODLAND_Description)
+modis.simple[[1]] <- modis.simple[[1]] %>% select(Latitude, Longitude, Date, MOD11A2_006_LST_Day_1km,
+                                                  MOD11A2_006_QC_Day_MODLAND_Description)
+names(modis.simple) <- c("lst_day","vi","lai","et","gpp","lst_night")
+modis.simple
+```
+Look at what the data quality levels are, convert good to 1, keep only 1s
+```{r echo= FALSE}
+#convert levels to factor
+levels(modis.simple[[1]][[5]]) <- as.factor(c(0,1,0))
+levels(modis.simple[[2]][[6]]) <- as.factor(c(0,0,1,0))
+levels(modis.simple[[3]][[6]]) <- as.factor(c(1,0))
+levels(modis.simple[[4]][[6]]) <- as.factor(c(1,0))
+levels(modis.simple[[5]][[5]]) <- as.factor(c(1,0))
+levels(modis.simple[[6]][[5]]) <- as.factor(c(0,1,0))
+#rename variables
+names(modis.simple[[1]]) <- c("LAT", "LONG", "DATE", "LST_D", "QUALITY")
+names(modis.simple[[2]]) <- c("LAT", "LONG", "DATE", "EVI", "NDVI", "QUALITY")
+names(modis.simple[[3]]) <- c("LAT", "LONG", "DATE", "FPAR", "LAI", "QUALITY")
+names(modis.simple[[4]]) <- c("LAT", "LONG", "DATE", "LE", "PET", "QUALITY")
+names(modis.simple[[5]]) <- c("LAT", "LONG", "DATE", "GPP", "QUALITY")
+names(modis.simple[[6]]) <- c("LAT", "LONG", "DATE", "LST_N", "QUALITY")
+# modis.simple
+
+modis.filtered <- list()
+for (i in 1:length(modis.simple)){
+  modis.filtered[[i]] <- as_tibble(modis.simple[[i]] %>% filter(QUALITY == 1))
+}
+modis.filtered
+names(modis.filtered) <- c("lst_day","vi","lai","et","gpp","lst_night")
+```
+Make a plot of daytime LST to make sure things look OK
+```{r}
+ggplot(modis.filtered[[1]], aes(DATE, LST_D, col = as.factor(LAT))) +
+  geom_point()
+```
+Combine all the MODIS products for all sites and years into one dataframe
+```{r}
+lst_d.filtered <- modis.filtered$lst_day %>% mutate(PRODUCT = rep("LST_D",length(LAT)), VAL = LST_D) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
+lst_n.filtered <- modis.filtered$lst_night %>% mutate(PRODUCT = rep("LST_N",length(LAT)), VAL = LST_N) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
+evi.filtered <- modis.filtered$vi %>% mutate(PRODUCT = rep("EVI",length(LAT)), VAL = EVI) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
+ndvi.filtered <- modis.filtered$vi  %>% mutate(PRODUCT = rep("NDVI",length(LAT)), VAL = NDVI) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
+fpar.filtered <- modis.filtered$lai  %>% mutate(PRODUCT = rep("FPAR",length(LAT)), VAL = FPAR) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
+lai.filtered <- modis.filtered$lai  %>% mutate(PRODUCT = rep("LAI",length(LAT)), VAL = LAI) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
+gpp.filtered <- modis.filtered$gpp %>% mutate(PRODUCT = rep("GPP",length(LAT)), VAL = GPP) %>% select(LAT, LONG, DATE, PRODUCT, VAL) 
+le.filtered <- modis.filtered$et %>% mutate(PRODUCT = rep("LE",length(LAT)), VAL = LE) %>%  select(LAT, LONG, DATE, PRODUCT, VAL) 
+pet.filtered <- modis.filtered$et %>% mutate(PRODUCT = rep("PET",length(LAT)), VAL = PET) %>% select(LAT, LONG, DATE, PRODUCT, VAL) 
+
+modis.filtered <- rbind(lst_d.filtered,lst_n.filtered,evi.filtered,ndvi.filtered,fpar.filtered,lai.filtered,
+                        gpp.filtered,le.filtered,pet.filtered)
+modis.filtered$PRODUCT <- as.factor(modis.filtered$PRODUCT)
+str(modis.filtered)
+
+```
+Finally , join the observations to the Site List on the latitude column:
+```{r}
+modis.full <- full_join(bams.sites, modis.filtered, by =c("LAT","LONG"))
+str(modis.full)
+```
+Finished! Save as .csv
+```{r warning=FALSE, message=FALSE}
+# set wd
+setwd("C:/Users/Gavin McNicol/Box Sync/MODIS Data/AppEEARS Data/bams-sites")
+write.csv(modis.full, "bams_sites_MODIS_full.csv")
+```
+
+
+
+
