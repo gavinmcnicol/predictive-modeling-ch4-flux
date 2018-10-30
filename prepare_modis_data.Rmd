@@ -112,33 +112,48 @@ Make a plot of daytime LST to make sure things look OK
 ggplot(modis.filtered[[1]], aes(DATE, LST_D, col = as.factor(LAT))) +
   geom_point()
 ```
-Combine all the MODIS products for all sites and years into one dataframe
+Create a dataframe for each product consisting of LAT, LONG, DATE and the product field (e.g. LST_D)
 ```{r}
-lst_d.filtered <- modis.filtered$lst_day %>% mutate(PRODUCT = rep("LST_D",length(LAT)), VAL = LST_D) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
-lst_n.filtered <- modis.filtered$lst_night %>% mutate(PRODUCT = rep("LST_N",length(LAT)), VAL = LST_N) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
-evi.filtered <- modis.filtered$vi %>% mutate(PRODUCT = rep("EVI",length(LAT)), VAL = EVI) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
-ndvi.filtered <- modis.filtered$vi  %>% mutate(PRODUCT = rep("NDVI",length(LAT)), VAL = NDVI) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
-fpar.filtered <- modis.filtered$lai  %>% mutate(PRODUCT = rep("FPAR",length(LAT)), VAL = FPAR) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
-lai.filtered <- modis.filtered$lai  %>% mutate(PRODUCT = rep("LAI",length(LAT)), VAL = LAI) %>% select(LAT, LONG, DATE, PRODUCT, VAL)
-gpp.filtered <- modis.filtered$gpp %>% mutate(PRODUCT = rep("GPP",length(LAT)), VAL = GPP) %>% select(LAT, LONG, DATE, PRODUCT, VAL) 
-le.filtered <- modis.filtered$et %>% mutate(PRODUCT = rep("LE",length(LAT)), VAL = LE) %>%  select(LAT, LONG, DATE, PRODUCT, VAL) 
-pet.filtered <- modis.filtered$et %>% mutate(PRODUCT = rep("PET",length(LAT)), VAL = PET) %>% select(LAT, LONG, DATE, PRODUCT, VAL) 
-
-modis.filtered <- rbind(lst_d.filtered,lst_n.filtered,evi.filtered,ndvi.filtered,fpar.filtered,lai.filtered,
-                        gpp.filtered,le.filtered,pet.filtered)
-modis.filtered$PRODUCT <- as.factor(modis.filtered$PRODUCT)
-str(modis.filtered)
-
+lst_d.filtered <- modis.filtered$lst_day %>% mutate(LST_D = LST_D) %>% select(LAT, LONG, DATE, LST_D)
+lst_n.filtered <- modis.filtered$lst_night %>% mutate(LST_N = LST_N) %>% select(LAT, LONG, DATE, LST_N)
+evi.filtered <- modis.filtered$vi %>% mutate(EVI = EVI) %>% select(LAT, LONG, DATE, EVI)
+ndvi.filtered <- modis.filtered$vi  %>% mutate(NDVI = NDVI) %>% select(LAT, LONG, DATE, NDVI)
+fpar.filtered <- modis.filtered$lai  %>% mutate(FPAR = FPAR) %>% select(LAT, LONG, DATE, FPAR)
+lai.filtered <- modis.filtered$lai  %>% mutate(LAI = LAI) %>% select(LAT, LONG, DATE, LAI)
+gpp.filtered <- modis.filtered$gpp %>% mutate(GPP = GPP) %>% select(LAT, LONG, DATE, GPP) 
+le.filtered <- modis.filtered$et %>% mutate(LE = LE) %>%  select(LAT, LONG, DATE, LE) 
+pet.filtered <- modis.filtered$et %>% mutate(PET = PET) %>% select(LAT, LONG, DATE, PET) 
 ```
-Finally , join the observations to the Site List on the latitude column:
+Create a full dataframe with each site name/latlong repeated n = length(2000-01-01 to 2018-12-31) (MODIS data window).
+Then right_join each modis product to the site name/all dates tibble to produce a complete dataframe of modis data.
 ```{r}
-modis.full <- full_join(bams.sites, modis.filtered, by =c("LAT","LONG"))
+full.date <- as_tibble(rep(as_date(c(as_date("2000-01-01"):as_date("2018-12-31"))),50))
+names(full.date) <- "DATE"
+full.date <- full.date %>% add_column(ID = rep(bams.sites$ID, each = length(full.date$DATE)/50)) %>% 
+                              add_column(LAT = rep(bams.sites$LAT, each = length(full.date$DATE)/50)) %>%
+                                add_column(LONG = rep(bams.sites$LONG, each = length(full.date$DATE)/50))
+
+
+modis.full <- right_join(full.date, lst_d.filtered, by =c("DATE","LAT","LONG"))
+modis.full <- right_join(modis.full, lst_n.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- right_join(modis.full, evi.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- right_join(modis.full, ndvi.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- right_join(modis.full, fpar.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- right_join(modis.full, lai.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- right_join(modis.full, gpp.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- right_join(modis.full, le.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- right_join(modis.full, pet.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- left_join(modis.full, bams.sites, by=c("LAT", "LONG"))
+modis.full <- modis.full %>% select(ID = ID.y, Category, -ID.x, LAT, LONG, DATE, LST_D, LST_N, EVI, NDVI, FPAR, LAI, GPP, LE, PET)
+
 str(modis.full)
+modis.full
 ```
+
 Finished! Save as .csv
 ```{r warning=FALSE, message=FALSE}
 # set wd
-setwd("C:/Users/Gavin McNicol/Box Sync/MODIS Data/AppEEARS Data/bams-sites")
+setwd("C:/Users/Gavin McNicol/Box Sync/MODIS Data/AppEEARS Data")
 write.csv(modis.full, "bams_sites_MODIS_full.csv")
 ```
 
