@@ -134,20 +134,16 @@ full.date <- full.date %>% add_column(ID = rep(bams.sites$ID, each = length(full
                                 add_column(LONG = rep(bams.sites$LONG, each = length(full.date$DATE)/50))
 
 
-modis.full <- right_join(full.date, lst_d.filtered, by =c("DATE","LAT","LONG"))
-modis.full <- right_join(modis.full, lst_n.filtered, by=c("DATE","LAT","LONG"))
-modis.full <- right_join(modis.full, evi.filtered, by=c("DATE","LAT","LONG"))
-modis.full <- right_join(modis.full, ndvi.filtered, by=c("DATE","LAT","LONG"))
-modis.full <- right_join(modis.full, fpar.filtered, by=c("DATE","LAT","LONG"))
-modis.full <- right_join(modis.full, lai.filtered, by=c("DATE","LAT","LONG"))
-modis.full <- right_join(modis.full, gpp.filtered, by=c("DATE","LAT","LONG"))
-modis.full <- right_join(modis.full, le.filtered, by=c("DATE","LAT","LONG"))
-modis.full <- right_join(modis.full, pet.filtered, by=c("DATE","LAT","LONG"))
-modis.full <- left_join(modis.full, bams.sites, by=c("LAT", "LONG"))
-modis.full <- modis.full %>% select(ID = ID.y, Category, -ID.x, LAT, LONG, DATE, LST_D, LST_N, EVI, NDVI, FPAR, LAI, GPP, LE, PET)
-
+modis.full <- full_join(full.date, lst_d.filtered, by =c("DATE","LAT","LONG"))
+modis.full <- full_join(modis.full, lst_n.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- full_join(modis.full, evi.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- full_join(modis.full, ndvi.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- full_join(modis.full, fpar.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- full_join(modis.full, lai.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- full_join(modis.full, gpp.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- full_join(modis.full, le.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- full_join(modis.full, pet.filtered, by=c("DATE","LAT","LONG"))
 str(modis.full)
-modis.full
 ```
 
 Finished! Save as .csv
