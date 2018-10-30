@@ -99,7 +99,6 @@ names(modis.simple[[4]]) <- c("LAT", "LONG", "DATE", "LE", "PET", "QUALITY")
 names(modis.simple[[5]]) <- c("LAT", "LONG", "DATE", "GPP", "QUALITY")
 names(modis.simple[[6]]) <- c("LAT", "LONG", "DATE", "LST_N", "QUALITY")
 # modis.simple
-
 modis.filtered <- list()
 for (i in 1:length(modis.simple)){
   modis.filtered[[i]] <- as_tibble(modis.simple[[i]] %>% filter(QUALITY == 1))
@@ -115,8 +114,8 @@ ggplot(modis.filtered[[1]], aes(DATE, LST_D, col = as.factor(LAT))) +
 Create a dataframe for each product consisting of LAT, LONG, DATE and the product field (e.g. LST_D)
 ```{r}
 lst_d.filtered <- modis.filtered$lst_day %>% mutate(LST_D = LST_D) %>% select(LAT, LONG, DATE, LST_D)
-lst_n.filtered <- modis.filtered$lst_night %>% mutate(LST_N = LST_N) %>% select(LAT, LONG, DATE, LST_N)
-evi.filtered <- modis.filtered$vi %>% mutate(EVI = EVI) %>% select(LAT, LONG, DATE, EVI)
+lst_n.filtered <- modis.filtered$lst_night %>% mutate(LST_N = LST_N) %>% select(LAT, LONG, DATE, LST_N) 
+evi.filtered <- modis.filtered$vi %>% mutate(EVI = EVI) %>% select(LAT, LONG, DATE, EVI) 
 ndvi.filtered <- modis.filtered$vi  %>% mutate(NDVI = NDVI) %>% select(LAT, LONG, DATE, NDVI)
 fpar.filtered <- modis.filtered$lai  %>% mutate(FPAR = FPAR) %>% select(LAT, LONG, DATE, FPAR)
 lai.filtered <- modis.filtered$lai  %>% mutate(LAI = LAI) %>% select(LAT, LONG, DATE, LAI)
@@ -133,7 +132,6 @@ full.date <- full.date %>% add_column(ID = rep(bams.sites$ID, each = length(full
                               add_column(LAT = rep(bams.sites$LAT, each = length(full.date$DATE)/50)) %>%
                                 add_column(LONG = rep(bams.sites$LONG, each = length(full.date$DATE)/50))
 
-
 modis.full <- full_join(full.date, lst_d.filtered, by =c("DATE","LAT","LONG"))
 modis.full <- full_join(modis.full, lst_n.filtered, by=c("DATE","LAT","LONG"))
 modis.full <- full_join(modis.full, evi.filtered, by=c("DATE","LAT","LONG"))
@@ -143,6 +141,7 @@ modis.full <- full_join(modis.full, lai.filtered, by=c("DATE","LAT","LONG"))
 modis.full <- full_join(modis.full, gpp.filtered, by=c("DATE","LAT","LONG"))
 modis.full <- full_join(modis.full, le.filtered, by=c("DATE","LAT","LONG"))
 modis.full <- full_join(modis.full, pet.filtered, by=c("DATE","LAT","LONG"))
+modis.full <- modis.full %>% distinct(ID, DATE, .keep_all = TRUE)
 str(modis.full)
 ```
 
